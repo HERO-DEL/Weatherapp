@@ -7,34 +7,36 @@ from datetime import datetime
 from matplotlib import pyplot as plt
 import plotly.graph_objects as go
 import plotly.express as px
+import pandas as pd
+import numpy as np
+import geopy
 
+from geopy.geocoders import Nominatim
 
 owm = pyowm.OWM('c203a5b730d6037d726770c88c080316')
-mgr=owm.weather_manager()
+mgr = owm.weather_manager()
 
-degree_sign= u'\N{DEGREE SIGN}'
+degree_sign = u'\N{DEGREE SIGN}'
 
 st.title("5 Day Weather Forecast")
 st.write("## Made by Subhankar Ghosh")
 
-st.write("### Write the name of a City and select the Temperature Unit and Graph Type from the sidebar")
+st.write("### Write the name of a City  or district and select the Temperature Unit and Graph Type from the sidebar")
 
-place=st.text_input("NAME OF THE CITY :", "")
-
+place = st.text_input("NAME OF THE CITY OR DISTRICT :", "")
 
 if place == None:
     st.write("Input a CITY!")
 
+unit = st.selectbox("Select Temperature Unit", ("Celsius", "Fahrenheit"))
 
-
-unit=st.selectbox("Select Temperature Unit",("Celsius","Fahrenheit"))
-
-g_type=st.selectbox("Select Graph Type",("Line Graph","Bar Graph"))
+g_type = st.selectbox("Select Graph Type", ("Line Graph", "Bar Graph"))
 
 if unit == 'Celsius':
     unit_c = 'celsius'
 else:
     unit_c = 'fahrenheit'
+
 
 
 def get_temperature():
@@ -43,10 +45,10 @@ def get_temperature():
     temp_min = []
     temp_max = []
     forecaster = mgr.forecast_at_place(place, '3h')
-    forecast=forecaster.forecast
+    forecast = forecaster.forecast
     for weather in forecast:
-        day=datetime.utcfromtimestamp(weather.reference_time())
-        #day = gmt_to_eastern(weather.reference_time())
+        day = datetime.utcfromtimestamp(weather.reference_time())
+        # day = gmt_to_eastern(weather.reference_time())
         date = day.date()
         if date not in dates:
             dates.append(date)
@@ -58,14 +60,14 @@ def get_temperature():
             temp_min[-1] = temperature
         if not temp_max[-1] or temperature > temp_max[-1]:
             temp_max[-1] = temperature
-    return(days, temp_min, temp_max)
+    return (days, temp_min, temp_max)
+
 
 def init_plot():
-     plt.figure('PyOWM Weather', figsize=(5,4))
-     plt.xlabel('Day')
-     plt.ylabel(f'Temperature ({degree_sign}F)')
-     plt.title('Weekly Forecast')
-
+    plt.figure('PyOWM Weather', figsize=(5, 4))
+    plt.xlabel('Day')
+    plt.ylabel(f'Temperature ({degree_sign}F)')
+    plt.title('Weekly Forecast')
 
 
 def plot_temperatures(days, temp_min, temp_max):
@@ -86,11 +88,13 @@ def plot_temperatures_line(days, temp_min, temp_max):
     fig.add_trace(go.Scatter(x=days, y=temp_max, name='maximimum temperatures'))
     return fig
 
+
 def label_xaxis(days):
     plt.xticks(days)
     axes = plt.gca()
     xaxis_format = dates.DateFormatter('%m/%d')
     axes.xaxis.set_major_formatter(xaxis_format)
+
 
 def draw_bar_chart():
     days, temp_min, temp_max = get_temperature()
@@ -98,8 +102,8 @@ def draw_bar_chart():
     # write_temperatures_on_bar_chart(bar_min, bar_max)
     st.plotly_chart(fig)
     st.title("Minimum and Maximum Temperatures")
-    for i in range (0,5):
-        st.write("### ",temp_min[i],degree_sign,' --- ',temp_max[i],degree_sign)
+    for i in range(1, 6):
+        st.write("Day", i, ' ', '->', temp_min[i], degree_sign, ' --- ', temp_max[i], degree_sign)
 
 
 def draw_line_chart():
@@ -107,8 +111,9 @@ def draw_line_chart():
     fig = plot_temperatures_line(days, temp_min, temp_max)
     st.plotly_chart(fig)
     st.title("Minimum and Maximum Temperatures")
-    for i in range (0,5):
-        st.write("### ",temp_min[i],degree_sign,' --- ',temp_max[i],degree_sign)
+    for i in range(1, 6):
+        st.write("Day", i, ' ', '->', temp_min[i], degree_sign, ' --- ', temp_max[i], degree_sign)
+
 
 def other_weather_updates():
     forecaster = mgr.forecast_at_place(place, '3h')
@@ -126,31 +131,58 @@ def other_weather_updates():
     if forecaster.will_have_hurricane():
         st.write("### Hurricane Alert!")
     if forecaster.will_have_clouds():
-        st.write("### Cloudy Skies")    
+        st.write("### Cloudy Skies")
     if forecaster.will_have_clear():
         st.write("### Clear Weather!")
 
+
 def cloud_and_wind():
-    obs=mgr.weather_at_place(place)
-    weather=obs.weather
-    cloud_cov=weather.clouds
-    winds=weather.wind()['speed']
+    obs = mgr.weather_at_place(place)
+    weather = obs.weather
+    cloud_cov = weather.clouds
+    winds = weather.wind()['speed']
     st.title("Cloud coverage and wind speed")
-    st.write('### The current cloud coverage for',place,'is',cloud_cov,'%')
-    st.write('### The current wind speed for',place, 'is',winds,'mph')
+    st.write('### The current cloud coverage for', place, 'is', cloud_cov, '%')
+    st.write('### The current wind speed for', place, 'is', winds, 'mph')
+
+def humidity():
+    obs = mgr.weather_at_place(place)
+    weather = obs.weather
+    humidity = weather.humidity
+    st.title("Humidity")
+    st.write('### The current Humidity for', place, 'is', humidity, '%')
+
 
 
 def updates():
     other_weather_updates()
     cloud_and_wind()
 
+def map():
+    st.title("Location on Map")
+    geolocator = Nominatim(user_agent="weather-app.py")
+
+    location = geolocator.geocode(place)
+
+    lati = location.latitude
+    long = location.longitude
+
+    print(lati)
+    print(long)
+    df = pd.DataFrame({'lat': [lati], 'lon': [long]})
+
+    st.map(df)
+
 
 if __name__ == '__main__':
-    
+
     if st.button("SUBMIT"):
         if g_type == 'Line Graph':
-            draw_line_chart()    
+            draw_line_chart()
         else:
             draw_bar_chart()
         updates()
+        humidity()
+        map()
+
 
